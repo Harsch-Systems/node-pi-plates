@@ -5,6 +5,7 @@ import piplates.DAQC2plate as DP2
 import piplates.RELAYplate as RP
 import piplates.MOTORplate as MP
 import piplates.THERMOplate as TP
+import piplates.TINKERplate as TINK
 
 # All Pi Plate communication must go through this one process to ensure
 # SPI communications don't overlap / interfere and corrupt the device state(s)
@@ -119,7 +120,7 @@ while True:
             elif (cmd == "getPWM"):
                 channel = args['channel']
                 value = PP.getPWM(addr, channel)
-                resp['channel'] = channel
+                resp['channgetel'] = channel
                 resp['value'] = value
             elif (cmd == "setPWM"):
                 channel = args['channel']
@@ -186,6 +187,31 @@ while True:
             else:
                 sys.stderr.write("unknown or unimplemented thermo cmd: " + cmd)
             print(json.dumps(resp))
+	elif (plate_type == "TINKER"):
+	    if("relay" in cmd):
+		relay = args['relay']
+		if(cmd == "relayON"):
+		    TINK.relayON(addr, relay)
+		elif (cmd == "relayOFF"):
+		    TINK.relayOFF(addr, relay)
+		elif (cmd == "relayTOGGLE"):
+		    TINK.relayTOGGLE(addr, relay)
+		state = TINK.relaySTATE(addr, relay)
+		resp['relay'] = relay
+		resp['state'] = state
+	    elif(cmd == "setDOUTbit"):
+		chan = args['bit']
+		TINK.setDOUT(addr, chan)
+		resp['bit'] = chan
+		resp['state'] = 1
+	    elif(cmd == "clrDOUTbit"):
+		chan = args['bit']
+		TINK.clrDOUT(addr, chan)
+		resp['bit'] = chan
+		resp['state'] = 0
+	    else:
+		sys.stderr.write("unknown or unimplemented tinker cmd: " + cmd)
+	    print(json.dumps(resp))
         else:
             sys.stderr.write("unknown plate_type: " + plate_type)
     except (EOFError, SystemExit):

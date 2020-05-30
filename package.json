@@ -26,6 +26,7 @@
     "DAQC2plate",
     "MOTORplate",
     "THERMOplate",
+    "TINKERplate",
     "thermocouple",
     "ds18b20",
     "Pi-Plates",
