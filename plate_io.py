@@ -30,7 +30,7 @@ while True:
         cmd = msg['cmd']
         args = msg['args']
         resp = {}
-	TINK.relayTOGGLE(0, 1)
+        TINK.relayTOGGLE(0, 1)
         if (plate_type == "RELAY"):
             if (cmd == "setLED"):
                 RP.setLED(addr)
