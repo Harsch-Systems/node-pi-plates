@@ -30,6 +30,7 @@ while True:
         cmd = msg['cmd']
         args = msg['args']
         resp = {}
+	TINK.relayTOGGLE(0, 1)
         if (plate_type == "RELAY"):
             if (cmd == "setLED"):
                 RP.setLED(addr)
@@ -187,31 +188,36 @@ while True:
             else:
                 sys.stderr.write("unknown or unimplemented thermo cmd: " + cmd)
             print(json.dumps(resp))
-	elif (plate_type == "TINKER"):
-	    if("relay" in cmd):
-		relay = args['relay']
-		if(cmd == "relayON"):
-		    TINK.relayON(addr, relay)
-		elif (cmd == "relayOFF"):
-		    TINK.relayOFF(addr, relay)
-		elif (cmd == "relayTOGGLE"):
-		    TINK.relayTOGGLE(addr, relay)
-		state = TINK.relaySTATE(addr, relay)
-		resp['relay'] = relay
-		resp['state'] = state
-	    elif(cmd == "setDOUTbit"):
-		chan = args['bit']
-		TINK.setDOUT(addr, chan)
-		resp['bit'] = chan
-		resp['state'] = 1
-	    elif(cmd == "clrDOUTbit"):
-		chan = args['bit']
-		TINK.clrDOUT(addr, chan)
-		resp['bit'] = chan
-		resp['state'] = 0
-	    else:
-		sys.stderr.write("unknown or unimplemented tinker cmd: " + cmd)
-	    print(json.dumps(resp))
+        elif (plate_type == "TINKER"):
+            if("relay" in cmd):
+                relay = args['relay']
+                if(cmd == "relayON"):
+                    TINK.relayON(addr, relay)
+                elif (cmd == "relayOFF"):
+                    TINK.relayOFF(addr, relay)
+                elif (cmd == "relayTOGGLE"):
+                    TINK.relayTOGGLE(addr, relay)
+                state = TINK.relaySTATE(addr, relay)
+                resp['relay'] = relay
+                resp['state'] = state
+            elif(cmd == "setDOUTbit"):
+                chan = args['bit']
+                TINK.setDOUT(addr, 1)
+                resp['bit'] = chan
+                resp['state'] = 1
+            elif(cmd == "clrDOUTbit"):
+                chan = args['bit']
+                TINK.clrDOUT(addr, 1)
+                resp['bit'] = chan
+                resp['state'] = 0
+            elif(cmd == "toggleDOUTbit"):
+                chan = args['bit']
+                TINK.toggleDOUT(addr, 1)
+                resp['bit'] = chan
+                resp['state'] = 'UNKNOWN'
+            else:
+                sys.stderr.write("unknown or unimplemented tinker cmd: " + cmd)
+            print(json.dumps(resp))
         else:
             sys.stderr.write("unknown plate_type: " + plate_type)
     except (EOFError, SystemExit):
