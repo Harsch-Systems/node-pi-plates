@@ -30,7 +30,6 @@ while True:
         cmd = msg['cmd']
         args = msg['args']
         resp = {}
-        TINK.relayTOGGLE(0, 1)
         if (plate_type == "RELAY"):
             if (cmd == "setLED"):
                 RP.setLED(addr)
@@ -200,21 +199,36 @@ while True:
                 state = TINK.relaySTATE(addr, relay)
                 resp['relay'] = relay
                 resp['state'] = state
-            elif(cmd == "setDOUTbit"):
+            elif("DOUT" in cmd):
                 chan = args['bit']
-                TINK.setDOUT(addr, 1)
+                TINK.setMODE(addr, chan, 'dout')
+                if(cmd == "setDOUTbit"):
+                    TINK.setDOUT(addr, chan)
+                    resp['state'] = 1
+                elif(cmd == "clrDOUTbit"):
+                    TINK.clrDOUT(addr, chan)
+                    resp['state'] = 0
+                elif(cmd == "toggleDOUTbit"):
+                    TINK.toggleDOUT(addr, chan)
+                    resp['state'] = 'UNKNOWN'
                 resp['bit'] = chan
-                resp['state'] = 1
-            elif(cmd == "clrDOUTbit"):
+            elif(cmd == "getDINbit"):
                 chan = args['bit']
-                TINK.clrDOUT(addr, 1)
+                TINK.setMODE(addr, chan, 'din')
+                state = TINK.getDIN(addr, chan)
+                resp['state'] = state
                 resp['bit'] = chan
-                resp['state'] = 0
-            elif(cmd == "toggleDOUTbit"):
-                chan = args['bit']
-                TINK.toggleDOUT(addr, 1)
-                resp['bit'] = chan
-                resp['state'] = 'UNKNOWN'
+            elif(cmd == "getADC"):
+                channel = args['channel']
+                voltage = TINK.getADC(addr, channel)
+                resp['channel'] = channel
+                resp['voltage'] = voltage
+            elif(cmd == "getTEMP"):
+                bit = args['bit']
+                scale = args['scale']
+                temp = TINK.getTEMP(addr, bit, scale)
+                resp['temp'] = temp
+                resp['bit'] = bit
             else:
                 sys.stderr.write("unknown or unimplemented tinker cmd: " + cmd)
             print(json.dumps(resp))
