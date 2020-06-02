@@ -65,6 +65,11 @@ while True:
             elif (cmd == "RESET"):
                 RP.RESET(addr)
                 resp['RESET'] = "OK";
+            elif (cmd == "VERIFY"):
+                if(RP.getADDR(addr) == addr):
+                    resp['state'] = 1
+                else:
+                    resp['state'] = 0
             else:
                 sys.stderr.write("unknown relay cmd: " + cmd)
                 break
@@ -161,6 +166,12 @@ while True:
                     sys.stderr.write("unsupported LED color: " + color)
 
                 resp['color'] = color
+            elif (cmd == "VERIFY"):
+                #For some reason the DAQC plate's getADDR method adds 8 to the address.
+                if(DP.getADDR(addr) - 8 == addr):
+                    resp['state'] = 1
+                else:
+                    resp['state'] = 0
             else:
                 sys.stderr.write("unknown daqc(2) cmd: " + cmd)
             print(json.dumps(resp))
@@ -184,6 +195,11 @@ while True:
             elif (cmd == "toggleLED"):
                 TP.toggleLED(addr)
                 resp['LED'] = TP.getLED(addr)
+            elif (cmd == "VERIFY"):
+                if(TP.getADDR(addr) == addr):
+                    resp['state'] = 1
+                else:
+                    resp['state'] = 0
             else:
                 sys.stderr.write("unknown or unimplemented thermo cmd: " + cmd)
             print(json.dumps(resp))
@@ -230,6 +246,11 @@ while True:
                 temp = TINK.getTEMP(addr, bit, scale)
                 resp['temp'] = temp
                 resp['bit'] = bit
+            elif (cmd == "VERIFY"):
+                if (TINK.getADDR(addr) == addr):
+                    resp['state'] = 1
+                else:
+                    resp['state'] = 0
             else:
                 sys.stderr.write("unknown or unimplemented tinker cmd: " + cmd)
             print(json.dumps(resp))
