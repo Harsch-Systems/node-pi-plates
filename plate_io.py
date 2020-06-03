@@ -166,9 +166,14 @@ while True:
                     sys.stderr.write("unsupported LED color: " + color)
 
                 resp['color'] = color
-            elif (cmd == "VERIFY"):
+            elif (cmd == "VERIFY" and plate_type == "DAQC"):
                 #For some reason the DAQC plate's getADDR method adds 8 to the address.
                 if(DP.getADDR(addr) - 8 == addr):
+                    resp['state'] = 1
+                else:
+                    resp['state'] = 0
+            elif (cmd == "VERIFY" and plate_type == "DAQC2"):
+                if(DP2.getADDR(addr) == addr):
                     resp['state'] = 1
                 else:
                     resp['state'] = 0
@@ -218,11 +223,9 @@ while True:
             elif("DOUT" in cmd):
                 chan = args['bit']
                 if(cmd == "setDOUTbit"):
-                    TINK.setMODE(addr, chan, 'dout')
                     TINK.setDOUT(addr, chan)
                     resp['state'] = 1
                 elif(cmd == "clrDOUTbit"):
-                    TINK.setMODE(addr, chan, 'dout')
                     TINK.clrDOUT(addr, chan)
                     resp['state'] = 0
                 elif(cmd == "toggleDOUTbit"):
@@ -231,7 +234,6 @@ while True:
                 resp['bit'] = chan
             elif(cmd == "getDINbit"):
                 chan = args['bit']
-                TINK.setMODE(addr, chan, 'din')
                 state = TINK.getDIN(addr, chan)
                 resp['state'] = state
                 resp['bit'] = chan
@@ -246,6 +248,14 @@ while True:
                 temp = TINK.getTEMP(addr, bit, scale)
                 resp['temp'] = temp
                 resp['bit'] = bit
+            elif (cmd == "setOUT"):
+                chan = args['bit']
+                TINK.setMODE(addr, chan, 'dout')
+                resp['state'] = "out"
+            elif (cmd == "setIN"):
+                chan = args['bit']
+                TINK.setMODE(addr, chan, 'din')
+                resp['state'] = "in"
             elif (cmd == "VERIFY"):
                 if (TINK.getADDR(addr) == addr):
                     resp['state'] = 1
@@ -256,5 +266,6 @@ while True:
             print(json.dumps(resp))
         else:
             sys.stderr.write("unknown plate_type: " + plate_type)
-    except (EOFError, SystemExit):
+    except (EOFError, SystemExit, AssertionError):
         sys.exit(0)
+
