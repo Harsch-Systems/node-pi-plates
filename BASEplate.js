@@ -5,12 +5,15 @@ const assert = require('assert');
 
 let child = spawn('python3', ['-u', __dirname + '/plate_io.py']);
 
+let status = 0;
+
 child.on('error', (err) => {
     console.log('child error: ' + err);
 });
 
 child.on('exit', (code, signal) => {
     console.log(`code: ${code} signal: ${signal}`);
+    status = 1;
 });
 
 child.stderr.on('data', (data) => {
@@ -22,13 +25,15 @@ const rl = readline.createInterface({
 });
 
 function do_cmd(task, cb) {
-    const cmd_str = JSON.stringify(task) + '\n';
-    child.stdin.write(cmd_str);
-    assert.equal(rl.listenerCount('line'), 0);
-    rl.once('line', (line) => {
-        const reply = JSON.parse(line);
-        cb(reply);
-    });
+    if (!status){
+        const cmd_str = JSON.stringify(task) + '\n';
+        child.stdin.write(cmd_str);
+        assert.equal(rl.listenerCount('line'), 0);
+        rl.once('line', (line) => {
+            const reply = JSON.parse(line);
+            cb(reply);
+        });
+    }
 }
 
 const queue = vasync.queue(do_cmd, 1);
@@ -47,7 +52,10 @@ class BASEplate {
         obj['plate_type'] = this.plate_type;
         obj['addr'] = this.addr;
 
-        this.queue.push(obj, receive_cb);
+        if (!status)
+            this.queue.push(obj, receive_cb);
+
+        return status;
     }
     shutdown () {
         child.kill();

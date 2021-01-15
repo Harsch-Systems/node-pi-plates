@@ -1,11 +1,15 @@
 import sys
 import json
-import piplates.DAQCplate as DP
-import piplates.DAQC2plate as DP2
-import piplates.RELAYplate as RP
-import piplates.MOTORplate as MP
-import piplates.THERMOplate as TP
-import piplates.TINKERplate as TINK
+
+try:
+    import piplates.DAQCplate as DP
+    import piplates.DAQC2plate as DP2
+    import piplates.RELAYplate as RP
+    import piplates.MOTORplate as MP
+    import piplates.THERMOplate as TP
+    import piplates.TINKERplate as TINK
+except:
+    sys.exit(1)
 
 # All Pi Plate communication must go through this one process to ensure
 # SPI communications don't overlap / interfere and corrupt the device state(s)
