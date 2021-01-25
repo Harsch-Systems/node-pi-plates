@@ -5,7 +5,7 @@ const assert = require('assert');
 
 let child = spawn('python3', ['-u', __dirname + '/plate_io.py']);
 
-let status = 0;
+let child_status = 0;
 
 child.on('error', (err) => {
     console.log('child error: ' + err);
@@ -13,7 +13,7 @@ child.on('error', (err) => {
 
 child.on('exit', (code, signal) => {
     console.log(`code: ${code} signal: ${signal}`);
-    status = 1;
+    child_status = 1;
 });
 
 child.stderr.on('data', (data) => {
@@ -25,7 +25,7 @@ const rl = readline.createInterface({
 });
 
 function do_cmd(task, cb) {
-    if (!status){
+    if (!child_status){
         const cmd_str = JSON.stringify(task) + '\n';
         child.stdin.write(cmd_str);
         assert.equal(rl.listenerCount('line'), 0);
@@ -43,6 +43,20 @@ class BASEplate {
         this.addr = addr;
         this.plate_type = plate_type;
         this.queue = queue;
+        this.plate_status = 3; //0 = no error, 1 = not found, 2 = python error, 3 = unknown
+        this.verify((status) => {
+            this.plate_status = status;
+        });
+    }
+    verify (cb) {
+        const verifier = {cmd: "VERIFY", args: {}};
+
+        if (child_status)
+            cb(2);
+
+        this.send(verifier, (reply) => {
+            cb(reply.state);
+        });
     }
     send (obj, receive_cb) {
         // send a request to this plate using the form:
@@ -52,10 +66,8 @@ class BASEplate {
         obj['plate_type'] = this.plate_type;
         obj['addr'] = this.addr;
 
-        if (!status)
+        if (!child_status)
             this.queue.push(obj, receive_cb);
-
-        return status;
     }
     shutdown () {
         child.kill();
