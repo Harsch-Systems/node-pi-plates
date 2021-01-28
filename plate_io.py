@@ -71,9 +71,12 @@ while True:
                 resp['RESET'] = "OK";
             elif (cmd == "VERIFY"):
                 if(RP.getADDR(addr) == addr):
-                    resp['state'] = 1
-                else:
                     resp['state'] = 0
+                else:
+                    resp['state'] = 1
+            elif (cmd == "ACTIVATE"):
+                RP.relaysPresent[addr] = 1
+                resp['state'] = 1
             else:
                 sys.stderr.write("unknown relay cmd: " + cmd)
                 break
@@ -173,14 +176,22 @@ while True:
             elif (cmd == "VERIFY" and plate_type == "DAQC"):
                 #For some reason the DAQC plate's getADDR method adds 8 to the address.
                 if(DP.getADDR(addr) - 8 == addr):
-                    resp['state'] = 1
-                else:
                     resp['state'] = 0
+                else:
+                    resp['state'] = 1
             elif (cmd == "VERIFY" and plate_type == "DAQC2"):
                 if(DP2.getADDR(addr) == addr):
-                    resp['state'] = 1
-                else:
                     resp['state'] = 0
+                else:
+                    resp['state'] = 1
+            elif (cmd == "ACTIVATE" and plate_type == "DAQC"):
+                PP.daqcsPresent[addr] = 1
+                PP.Vcc[addr] = PP.getADC(addr, 8)
+                resp['state'] = 1
+            elif (cmd == "ACTIVATE" and plate_type == "DAQC2"):
+                PP.daqc2sPresent[addr] = 1
+                PP.getCalVals(addr)
+                resp['state'] = 1
             else:
                 sys.stderr.write("unknown daqc(2) cmd: " + cmd)
             print(json.dumps(resp))
@@ -206,9 +217,13 @@ while True:
                 resp['LED'] = TP.getLED(addr)
             elif (cmd == "VERIFY"):
                 if(TP.getADDR(addr) == addr):
-                    resp['state'] = 1
-                else:
                     resp['state'] = 0
+                else:
+                    resp['state'] = 1
+            elif (cmd == "ACTIVATE"):
+                TP.THERMOsPresent[addr] = 1
+                TP.getCalVals(addr)
+                resp['state'] = 1
             else:
                 sys.stderr.write("unknown or unimplemented thermo cmd: " + cmd)
             print(json.dumps(resp))
@@ -262,9 +277,12 @@ while True:
                 resp['state'] = "in"
             elif (cmd == "VERIFY"):
                 if (TINK.getADDR(addr) == addr):
-                    resp['state'] = 1
-                else:
                     resp['state'] = 0
+                else:
+                    resp['state'] = 1
+            elif (cmd == "ACTIVATE"):
+                TINK.platesPresent[addr] = 1
+                resp['state'] = 1
             else:
                 sys.stderr.write("unknown or unimplemented tinker cmd: " + cmd)
             print(json.dumps(resp))

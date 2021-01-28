@@ -44,19 +44,27 @@ class BASEplate {
         this.plate_type = plate_type;
         this.queue = queue;
         this.plate_status = 3; //0 = no error, 1 = not found, 2 = python error, 3 = unknown
-        this.verify((status) => {
-            this.plate_status = status;
-        });
+        this.update_status();
     }
-    verify (cb) {
-        const verifier = {cmd: "VERIFY", args: {}};
+    update_status () {
+        if (child_status) {
+            this.plate_status = 2;
+        }else {
+            const verifier = {cmd: "VERIFY", args: {}};
 
-        if (child_status)
-            cb(2);
+            this.send(verifier, (reply) => {
+                // If the plate was invalid and now works, the piplates library
+                // needs that update as well. So, we activate the piplate:
 
-        this.send(verifier, (reply) => {
-            cb(reply.state);
-        });
+                if (this.plate_status == 1 && !reply.state) {
+                    const update = {cmd: "ACTIVATE", args: {}};
+
+                    this.send(update, (reply) => {});
+                }
+
+                this.plate_status = reply.state;
+            });
+        }
     }
     send (obj, receive_cb) {
         // send a request to this plate using the form:
