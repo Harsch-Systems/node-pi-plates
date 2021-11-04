@@ -21,8 +21,14 @@ while True:
         cmd = msg['cmd']
         args = msg['args']
         resp = {}
-        if (plate_type == "RELAY"):
-            import piplates.RELAYplate as RP
+        if (plate_type == "RELAY" or plate_type == "RELAY2"):
+        # switch between RELAY and RELAY2 for their common API
+            if (plate_type == "RELAY2"):
+                import piplates.RELAYplate2 as RP2
+                RP = RP2
+            else:
+                import piplates.RELAYplate as RP
+                RP = RP
             if (cmd == "setLED"):
                 RP.setLED(addr)
                 resp['state'] = 1
@@ -125,7 +131,7 @@ while True:
             elif (cmd == "getPWM"):
                 channel = args['channel']
                 value = PP.getPWM(addr, channel)
-                resp['channgetel'] = channel
+                resp['channel'] = channel
                 resp['value'] = value
             elif (cmd == "setPWM"):
                 channel = args['channel']
@@ -270,6 +276,16 @@ while True:
                 chan = args['bit']
                 TINK.setMODE(addr, chan, 'temp')
                 resp['state'] = "temp"
+            elif (cmd == "setPWM"):
+                channel = args['channel']
+                value = args['value']
+                TINK.setPWM(addr, channel, value)
+                resp['channel'] = channel
+                resp['value'] = value
+            elif (cmd == "setPWMmode"):
+                chan = args['bit']
+                TINK.setMODE(addr, chan, 'pwm')
+                resp['state'] = "pwm"                
             elif (cmd == "setIN"):
                 chan = args['bit']
                 TINK.setMODE(addr, chan, 'din')
