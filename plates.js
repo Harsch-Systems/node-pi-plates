@@ -8,6 +8,7 @@ var TINKERplate = require('./TINKERplate');
 var ADCplate = require('./ADCplate');
 var DIGIplate = require('./DIGIplate');
 var CURRENTplate = require('./CURRENTplate');
+var POWERplate = require('./POWERplate');
 
 module.exports = {
     RELAYplate: RELAYplate,
@@ -19,5 +20,6 @@ module.exports = {
     TINKERplate: TINKERplate,
     ADCplate: ADCplate,
     DIGIplate: DIGIplate,
-    CURRENTplate: CURRENTplate
+    CURRENTplate: CURRENTplate,
+    POWERplate: POWERplate
 }

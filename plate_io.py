@@ -22,15 +22,24 @@ def common_handler(PP, plate_type, addr, cmd, args):
     if (cmd == "getID"):
         result['ID'] = PP.getID(addr)
     elif (cmd == "getFWrev"):
-        result['FWrev'] = PP.getFWrev(addr)
+        if (plate_type == "POWER"):
+            result['FWrev'] = "unknown";
+        else:
+            result['FWrev'] = PP.getFWrev(addr)
     elif (cmd == "getHWrev"):
-        result['HWrev'] = PP.getHWrev(addr)
+        if (plate_type == "POWER"):
+            result['HWrev'] = "unknown";
+        else:
+            result['HWrev'] = PP.getHWrev(addr)
     elif (cmd == "getVersion"):
         result['Version'] = PP.getVersion()
     elif (cmd == "getADDR"):
         result['ADDR'] = PP.getADDR(addr)
     elif (cmd == "VERIFY"):
-        poll = PP.getADDR(addr)
+        if (plate_type == "POWER"):
+            poll = PP.getADDR()
+        else:
+            poll = PP.getADDR(addr)
         # the DAQC plate's getADDR method adds 8 to the address.
         if (plate_type == "DAQC"):
             poll = poll - 8
@@ -79,6 +88,18 @@ def common_handler(PP, plate_type, addr, cmd, args):
             else:
                 PP.setLED(addr, 'white')
                 result['state'] = 1
+        elif (plate_type == "POWER"):
+            if ('color' in args):
+                color = args['color']
+
+                if color in ['red', 'green', 'yellow', 'off']:
+                    PP.setLED(addr, color.upper())
+                    result['state'] = color
+                else:
+                    sys.stderr.write("unsupported LED color: " + color)
+            else:
+                PP.setLED(addr, 'YELLOW')
+                result['state'] = 1
         elif (plate_type == "TINKER"):
             PP.setLED(addr, 0)
             result['state'] = 1
@@ -102,6 +123,9 @@ def common_handler(PP, plate_type, addr, cmd, args):
 
         elif (plate_type == "DAQC2"):
             PP.setLED(addr, 'off')
+            result['state'] = 0
+        elif (plate_type == "POWER"):
+            PP.setLED(addr, 'OFF')
             result['state'] = 0
         elif (plate_type == "TINKER"):
             PP.clrLED(addr, 0)
@@ -135,6 +159,9 @@ def common_handler(PP, plate_type, addr, cmd, args):
         elif (plate_type == "TINKER"):
             PP.toggleLED(addr, 0)
             result['state'] = PP.getLED(addr, 0)
+        elif (plate_type == "POWER"):
+            # No way to toggle or fake it
+            pass
         else:
             PP.toggleLED(addr)
             result['state'] = "UNKNOWN"
@@ -480,6 +507,63 @@ while True:
                 resp['currents'] = readings
             else:
                 sys.stderr.write("unknown current cmd: " + cmd)
+            print(json.dumps(resp))
+        elif (plate_type == "POWER"):
+            import piplates.POWERplate as POWER
+            if (cmd in common_funcs):
+                resp = common_handler(POWER, plate_type, addr, cmd, args)
+            elif (cmd == "getVin"):
+                volts = POWER.getVin(0)
+                resp['voltage'] = volts
+            elif (cmd == "getIn"):
+                # TBD
+                continue
+            elif (cmd == "getCPUtemp"):
+                # TBD
+                continue
+            elif (cmd == "setRTC"):
+                # TBD
+                continue
+            elif (cmd == "setWAKE"):
+                # TBD
+                continue
+            elif (cmd == "enableWAKE"):
+                # TBD
+                continue
+            elif (cmd == "disableWAKE"):
+                # TBD
+                continue
+            elif (cmd == "getWAKESOURCE"):
+                # TBD
+                continue
+            elif (cmd == "powerOFF"):
+                # TBD
+                continue
+            elif (cmd == "ledMODE"):
+                # TBD
+                continue
+            elif (cmd == "fanON"):
+                POWER.fanON(0)
+                resp['state'] = POWER.fanSTATE(0)
+            elif (cmd == "fanOFF"):
+                POWER.fanOFF(0)
+                resp['state'] = POWER.fanSTATE(0)
+            elif (cmd == "fanSTATE"):
+                resp['state'] = POWER.fanSTATE(0)
+            elif (cmd == "getSWstate"):
+                # TBD
+                continue
+            elif (cmd == "enablePOWERSW"):
+                # TBD
+                continue
+            elif (cmd == "disablePOWERSW"):
+                # TBD
+                continue
+            elif (cmd == "setSHUTDOWNdelay"):
+                # TBD
+                continue
+            else:
+                sys.stderr.write("unknown power cmd: " + cmd)
             print(json.dumps(resp))
         else:
             sys.stderr.write("unknown plate_type: " + plate_type)
