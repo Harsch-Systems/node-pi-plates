@@ -305,6 +305,65 @@ while True:
                 resp['value'] = value
             elif (cmd == "calDAC"):
                 PP.calDAC(addr)
+            elif (cmd == "getOSCtraces"):
+
+                channel1 = args['channel1']
+                channel2 = args['channel2']
+                rate = args['rate']
+                triggerType = args['triggerType']
+                triggerEdge = args['triggerEdge']
+                triggerLevel = args['triggerLevel']
+                triggerManual = args['triggerManual']
+                triggerChannel = args['triggerChannel']
+
+                PP.startOSC(addr)
+                PP.setOSCchannel(addr, channel1 if 1 else 0, channel2 if 1 else 0)
+
+                PP.setOSCsweep(addr,rate)
+                PP.intEnable(addr)          #enable interrupts
+                PP.runOSC(addr)             #start oscope
+
+                if triggerManual:
+                    PP.trigOSCnow(addr)
+                else:
+                    PP.setOSCtrigger(addr, triggerChannel, triggerType, triggerEdge, triggerLevel)
+
+                dataReady=False
+
+                while not dataReady:
+                    if(PP.GPIO.input(22)==0):
+                        dataReady=True
+                        PP.getINTflags(addr) #clear interrupt flags
+
+                if dataReady:
+
+                    PP.getOSCtraces(addr)
+
+                    if channel1:
+                        result = []
+                        for f in PP.trace1:
+                            result.append((f-2048)*12.0/2048)
+                        resp['trace1'] = result
+
+                    if channel2:
+                        result = []
+                        for f in PP.trace2:
+                            result.append((f-2048)*12.0/2048)
+                        resp['trace2'] = result
+
+                PP.intDisable(addr)          #enable interrupts
+                PP.stopOSC(addr)
+
+            elif (cmd == "setOSCtrigger"):
+                channel = args['channel']
+                trigger_type = args['type']
+                edge = args['edge']
+                level = args['level']
+                PP.setOSCtrigger(addr,channel,trigger_type,edge,level)
+            elif (cmd == "trigOSCnow"):
+                PP.trigOSCnow(addr)
+            elif (cmd == "runOSC"):
+                PP.runOSC(addr)
             elif (cmd == "getFREQ" and plate_type == "DAQC2"):
                 value = DP2.getFREQ(addr)
                 resp['value'] = value
