@@ -37,11 +37,21 @@ class PlateIO {
             console.log('stderr: ' + data);
         });
 
-        this.rl = readline.createInterface({
-            input: this.process.stdout
+        // e.g. EPIPE from writing to a co-process that has just died
+        this.process.stdin.on('error', (err) => {
+            console.log('error writing to pi-plates python co-process: ' + err);
         });
 
-        this.queue = vasync.queue((task, cb) => this.do_cmd(task, cb), 1);
+        // I/O state for this particular co-process. Tasks queued against it
+        // stay bound to it, so if it dies they fail rather than hang.
+        const io = {
+            process: this.process,
+            rl: readline.createInterface({ input: this.process.stdout }),
+            closed: false
+        };
+        io.rl.on('close', () => { io.closed = true; });
+
+        this.queue = vasync.queue((task, cb) => this.do_cmd(io, task, cb), 1);
     }
 
     get_execution_count () {
@@ -56,25 +66,34 @@ class PlateIO {
         this.process.kill();
     }
 
-    do_cmd (task, cb) {
-        if (!this.get_status()) {
-            const cmd_str = JSON.stringify(task) + '\n';
-            try {
-                this.process.stdin.write(cmd_str);
-                assert.equal(this.rl.listenerCount('line'), 0);
-                this.rl.once('line', (line) => {
-                    try {
-                        const reply = JSON.parse(line);
-                        cb(reply);
-                    } catch (e) {
-                        console.log('invalid json received from pi-plates python co-process: ' + line);
-                        cb();
-                    }
-                });
-            } catch (e) {
-                console.log('error writing to pi-plates python co-process');
-            }
+    // Every path must call cb exactly once, or the queue stalls forever.
+    // Failures are reported as a reply of the form {error: <message>}.
+    do_cmd (io, task, cb) {
+        if (io.closed) {
+            cb({error: 'pi-plates python co-process is not running'});
+            return;
         }
+
+        const on_line = (line) => {
+            io.rl.removeListener('close', on_close);
+            let reply;
+            try {
+                reply = JSON.parse(line);
+            } catch (e) {
+                console.log('invalid json received from pi-plates python co-process: ' + line);
+                reply = {error: 'invalid reply from pi-plates python co-process'};
+            }
+            cb(reply);
+        };
+        const on_close = () => {
+            io.rl.removeListener('line', on_line);
+            cb({error: 'pi-plates python co-process exited before replying'});
+        };
+
+        assert.equal(io.rl.listenerCount('line'), 0);
+        io.rl.once('line', on_line);
+        io.rl.once('close', on_close);
+        io.process.stdin.write(JSON.stringify(task) + '\n');
     }
 }
 
@@ -110,6 +129,11 @@ class BASEplate {
                 // If the plate was invalid and now works, the piplates library
                 // needs that update as well. So, we activate the piplate:
 
+                if (reply.error) {
+                    this.plate_status = 3;
+                    return;
+                }
+
                 if (this.plate_status == 1 && !reply.state) {
                     const update = {cmd: "ACTIVATE", args: {}};
 
@@ -129,7 +153,10 @@ class BASEplate {
         obj['plate_type'] = this.plate_type;
         obj['addr'] = this.addr;
 
-        if (!plate_io.get_status() && !plate_io.queue.closed) {
+        if (plate_io.queue.closed) {
+            // co-process is restarting
+            setImmediate(() => receive_cb({error: 'pi-plates python co-process is not running'}));
+        } else {
             plate_io.queue.push(obj, receive_cb);
         }
     }

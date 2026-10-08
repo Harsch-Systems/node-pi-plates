@@ -1,5 +1,6 @@
 import sys
 import json
+import traceback
 
 # All Pi Plate communication must go through this one process to ensure
 # SPI communications don't overlap / interfere and corrupt the device state(s)
@@ -198,9 +199,11 @@ def common_handler(PP, plate_type, addr, cmd, args):
 
 
 while True:
+    line = sys.stdin.readline()
+    if not line:
+        # stdin closed: the node side has gone away
+        sys.exit(0)
     try:
-        line = sys.stdin.readline()
-        # TODO: add error handling for invalid JSON
         msg = json.loads(line)
         addr = msg['addr']
         plate_type = msg['plate_type']
@@ -235,7 +238,6 @@ while True:
                 resp['state'] = 1
             else:
                 sys.stderr.write("unknown relay cmd: " + cmd)
-                break
             print(json.dumps(resp))
         elif (plate_type == "DAQC" or plate_type == "DAQC2"):
             # switch between DAQC and DAQC2 for their common API
@@ -546,5 +548,9 @@ while True:
             print(json.dumps(resp))
         else:
             sys.stderr.write("unknown plate_type: " + plate_type)
-    except (EOFError, SystemExit, AssertionError):
-        sys.exit(3)
+            print(json.dumps({'error': "unknown plate_type: " + plate_type}))
+    except Exception as e:
+        # Reply with an error rather than dying, so that one failed command
+        # (e.g. a transient SPI glitch) doesn't take down the co-process.
+        traceback.print_exc()
+        print(json.dumps({'error': type(e).__name__ + ": " + str(e)}))
