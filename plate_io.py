@@ -1,5 +1,6 @@
 import sys
 import json
+import traceback
 
 # All Pi Plate communication must go through this one process to ensure
 # SPI communications don't overlap / interfere and corrupt the device state(s)
@@ -70,6 +71,7 @@ def common_handler(PP, plate_type, addr, cmd, args):
             else:
                 # default to green (LED 1)
                 PP.setLED(0, 'GREEN')
+                result['state'] = 'green'
         elif (plate_type == "DAQC"):
             if ('color' in args):
                 color = args['color']
@@ -120,8 +122,10 @@ def common_handler(PP, plate_type, addr, cmd, args):
                 color = args['color']
                 if (color == 'red'):
                     PP.clrLED(addr, 0)
+                    result['state'] = 0
                 elif (color == 'green'):
                     PP.clrLED(addr, 1)
+                    result['state'] = 0
                 else:
                     sys.stderr.write("unsupported LED color: " + color)
             else:
@@ -162,8 +166,10 @@ def common_handler(PP, plate_type, addr, cmd, args):
             cur_color = PP.getLED(addr)
             if (cur_color == "off"):
                 PP.setLED(addr, "white")
+                result['state'] = 1
             else:
                 PP.setLED(addr, "off")
+                result['state'] = 0
         elif (plate_type == "TINKER"):
             PP.toggleLED(addr, 0)
             result['state'] = PP.getLED(addr, 0)
@@ -198,9 +204,11 @@ def common_handler(PP, plate_type, addr, cmd, args):
 
 
 while True:
+    line = sys.stdin.readline()
+    if not line:
+        # stdin closed: the node side has gone away
+        sys.exit(0)
     try:
-        line = sys.stdin.readline()
-        # TODO: add error handling for invalid JSON
         msg = json.loads(line)
         addr = msg['addr']
         plate_type = msg['plate_type']
@@ -235,7 +243,6 @@ while True:
                 resp['state'] = 1
             else:
                 sys.stderr.write("unknown relay cmd: " + cmd)
-                break
             print(json.dumps(resp))
         elif (plate_type == "DAQC" or plate_type == "DAQC2"):
             # switch between DAQC and DAQC2 for their common API
@@ -546,5 +553,9 @@ while True:
             print(json.dumps(resp))
         else:
             sys.stderr.write("unknown plate_type: " + plate_type)
-    except (EOFError, SystemExit, AssertionError):
-        sys.exit(3)
+            print(json.dumps({'error': "unknown plate_type: " + plate_type}))
+    except Exception as e:
+        # Reply with an error rather than dying, so that one failed command
+        # (e.g. a transient SPI glitch) doesn't take down the co-process.
+        traceback.print_exc()
+        print(json.dumps({'error': type(e).__name__ + ": " + str(e)}))
