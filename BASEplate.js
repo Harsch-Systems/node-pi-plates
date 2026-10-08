@@ -6,31 +6,47 @@ const assert = require('assert');
 class PlateIO {
     constructor () {
         this.statuses = [];
+        this.stopped = false;
+        this.respawn_timer = null;
 
         this.create_process();
     }
 
     create_process () {
+        this.respawn_timer = null;
         this.process = spawn(__dirname + '/env/bin/python3', ['-u', __dirname + '/plate_io.py']);
         this.statuses.push(0);
 
-        let exec_count = this.get_execution_count();
+        const proc = this.process;
+        const slot = this.statuses.length - 1;
+        let ended = false;
 
-        console.log(`Starting pi-plates python co-process (count ${exec_count})`);
+        console.log(`Starting pi-plates python co-process (count ${slot + 1})`);
+
+        // 'error' and 'exit' can both fire for one failure, and a process
+        // replaced after shutdown() can exit late: act once, and only on
+        // the current process.
+        const on_end = (status) => {
+            if (ended)
+                return;
+            ended = true;
+            this.statuses[slot] = status;
+
+            if (proc !== this.process)
+                return;
+            this.queue.close();
+            if (!this.stopped)
+                this.respawn_timer = setTimeout(() => this.create_process(), 1000);
+        };
 
         this.process.on('error', (err) => {
             console.log('child error: ' + err);
-
-            this.queue.close();
-            setTimeout(() => this.create_process(), 1000);
+            on_end(3);
         });
 
         this.process.on('exit', (code, signal) => {
             console.log(`pi-plates python co-process exited with code: ${code} and signal: ${signal}`);
-            this.statuses[this.statuses.length - 1] = code;
-
-            this.queue.close();
-            setTimeout(() => this.create_process(), 1000);
+            on_end(code);
         });
 
         this.process.stderr.on('data', (data) => {
@@ -62,8 +78,21 @@ class PlateIO {
         return this.statuses[this.statuses.length - 1];
     }
 
+    // Stop the co-process without respawning it. It is restarted on demand
+    // by the next plate created or command sent (see ensure_running).
     kill () {
+        this.stopped = true;
+        clearTimeout(this.respawn_timer);
+        this.respawn_timer = null;
+        this.queue.close();
         this.process.kill();
+    }
+
+    ensure_running () {
+        if (this.stopped) {
+            this.stopped = false;
+            this.create_process();
+        }
     }
 
     // Every path must call cb exactly once, or the queue stalls forever.
@@ -114,6 +143,7 @@ class BASEplate {
          */
         this.plate_status = 4;
 
+        plate_io.ensure_running();
         this.update_status();
     }
 
@@ -153,6 +183,7 @@ class BASEplate {
         obj['plate_type'] = this.plate_type;
         obj['addr'] = this.addr;
 
+        plate_io.ensure_running();
         if (plate_io.queue.closed) {
             // co-process is restarting
             setImmediate(() => receive_cb({error: 'pi-plates python co-process is not running'}));
