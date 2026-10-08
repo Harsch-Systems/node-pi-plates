@@ -3,11 +3,18 @@ const readline = require('readline');
 const { spawn } = require('child_process');
 const assert = require('assert');
 
+// Respawn delay after a co-process crash doubles on each consecutive crash,
+// up to the max, and resets once a co-process has stayed up for STABLE_MS.
+const RESPAWN_MIN_MS = 1000;
+const RESPAWN_MAX_MS = 60000;
+const RESPAWN_STABLE_MS = 60000;
+
 class PlateIO {
     constructor () {
         this.statuses = [];
         this.stopped = false;
         this.respawn_timer = null;
+        this.respawn_delay = RESPAWN_MIN_MS;
 
         this.create_process();
     }
@@ -19,6 +26,7 @@ class PlateIO {
 
         const proc = this.process;
         const slot = this.statuses.length - 1;
+        const started = Date.now();
         let ended = false;
 
         console.log(`Starting pi-plates python co-process (count ${slot + 1})`);
@@ -36,7 +44,7 @@ class PlateIO {
                 return;
             this.queue.close();
             if (!this.stopped)
-                this.respawn_timer = setTimeout(() => this.create_process(), 1000);
+                this.schedule_respawn(Date.now() - started);
         };
 
         this.process.on('error', (err) => {
@@ -68,6 +76,17 @@ class PlateIO {
         io.rl.on('close', () => { io.closed = true; });
 
         this.queue = vasync.queue((task, cb) => this.do_cmd(io, task, cb), 1);
+    }
+
+    schedule_respawn (uptime) {
+        if (uptime >= RESPAWN_STABLE_MS)
+            this.respawn_delay = RESPAWN_MIN_MS;
+
+        const delay = this.respawn_delay;
+        this.respawn_delay = Math.min(delay * 2, RESPAWN_MAX_MS);
+
+        console.log(`Restarting pi-plates python co-process in ${delay / 1000}s`);
+        this.respawn_timer = setTimeout(() => this.create_process(), delay);
     }
 
     get_execution_count () {
