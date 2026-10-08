@@ -2,6 +2,7 @@ const vasync = require('vasync');
 const readline = require('readline');
 const { spawn } = require('child_process');
 const assert = require('assert');
+const EventEmitter = require('events');
 
 // Respawn delay after a co-process crash doubles on each consecutive crash,
 // up to the max, and resets once a co-process has stayed up for STABLE_MS.
@@ -9,9 +10,13 @@ const RESPAWN_MIN_MS = 1000;
 const RESPAWN_MAX_MS = 60000;
 const RESPAWN_STABLE_MS = 60000;
 
-class PlateIO {
+// Emits 'start' each time a new co-process is spawned.
+class PlateIO extends EventEmitter {
     constructor () {
-        this.statuses = [];
+        super();
+        // one 'start' listener per plate awaiting verification
+        this.setMaxListeners(0);
+        this.exec_count = 0;
         this.stopped = false;
         this.respawn_timer = null;
         this.respawn_delay = RESPAWN_MIN_MS;
@@ -22,23 +27,21 @@ class PlateIO {
     create_process () {
         this.respawn_timer = null;
         this.process = spawn(__dirname + '/env/bin/python3', ['-u', __dirname + '/plate_io.py']);
-        this.statuses.push(0);
+        this.exec_count++;
 
         const proc = this.process;
-        const slot = this.statuses.length - 1;
         const started = Date.now();
         let ended = false;
 
-        console.log(`Starting pi-plates python co-process (count ${slot + 1})`);
+        console.log(`Starting pi-plates python co-process (count ${this.exec_count})`);
 
         // 'error' and 'exit' can both fire for one failure, and a process
         // replaced after shutdown() can exit late: act once, and only on
         // the current process.
-        const on_end = (status) => {
+        const on_end = () => {
             if (ended)
                 return;
             ended = true;
-            this.statuses[slot] = status;
 
             if (proc !== this.process)
                 return;
@@ -49,12 +52,12 @@ class PlateIO {
 
         this.process.on('error', (err) => {
             console.log('child error: ' + err);
-            on_end(3);
+            on_end();
         });
 
         this.process.on('exit', (code, signal) => {
             console.log(`pi-plates python co-process exited with code: ${code} and signal: ${signal}`);
-            on_end(code);
+            on_end();
         });
 
         this.process.stderr.on('data', (data) => {
@@ -76,6 +79,8 @@ class PlateIO {
         io.rl.on('close', () => { io.closed = true; });
 
         this.queue = vasync.queue((task, cb) => this.do_cmd(io, task, cb), 1);
+
+        this.emit('start');
     }
 
     schedule_respawn (uptime) {
@@ -90,11 +95,11 @@ class PlateIO {
     }
 
     get_execution_count () {
-        return this.statuses.length;
+        return this.exec_count;
     }
 
-    get_status () {
-        return this.statuses[this.statuses.length - 1];
+    is_running () {
+        return !this.queue.closed;
     }
 
     // Stop the co-process without respawning it. It is restarted on demand
@@ -168,30 +173,34 @@ class BASEplate {
 
     // Updates this.plate_status.
     update_status () {
-        let child_status = plate_io.get_status();
-        if (child_status) {
-            this.plate_status = child_status;
-        } else {
-            const verifier = {cmd: "VERIFY", args: {}};
-
-            this.send(verifier, (reply) => {
-                // If the plate was invalid and now works, the piplates library
-                // needs that update as well. So, we activate the piplate:
-
-                if (reply.error) {
-                    this.plate_status = 3;
-                    return;
-                }
-
-                if (this.plate_status == 1 && !reply.state) {
-                    const update = {cmd: "ACTIVATE", args: {}};
-
-                    this.send(update, (reply) => {});
-                }
-
-                this.plate_status = reply.state;
-            });
+        if (!plate_io.is_running()) {
+            // co-process is restarting: verify once it's back
+            this.plate_status = 4;
+            plate_io.once('start', () => this.update_status());
+            return;
         }
+
+        const verifier = {cmd: "VERIFY", args: {}};
+
+        this.send(verifier, (reply) => {
+            if (reply.error) {
+                if (/^(ModuleNotFoundError|ImportError)\b/.test(reply.error))
+                    this.plate_status = 2;
+                else
+                    this.plate_status = 3;
+                return;
+            }
+
+            // If the plate was invalid and now works, the piplates library
+            // needs that update as well. So, we activate the piplate:
+            if (this.plate_status == 1 && !reply.state) {
+                const update = {cmd: "ACTIVATE", args: {}};
+
+                this.send(update, (reply) => {});
+            }
+
+            this.plate_status = reply.state;
+        });
     }
 
     send (obj, receive_cb) {
